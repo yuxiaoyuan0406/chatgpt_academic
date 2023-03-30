@@ -94,7 +94,7 @@ def auto_opentab_delay():
     import threading, webbrowser, time
     print(f"URL http://localhost:{PORT}")
     def open(): time.sleep(2)
-    webbrowser.open_new_tab(f'http://localhost:{PORT}')
+    # webbrowser.open_new_tab(f'http://localhost:{PORT}')
     t = threading.Thread(target=open)
     t.daemon = True; t.start()
 
