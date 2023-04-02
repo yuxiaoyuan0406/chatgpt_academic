@@ -96,13 +96,19 @@ def predict_no_ui_long_connection(inputs, top_p, temperature, history=[], sys_pr
         except StopIteration: break
         if len(chunk)==0: continue
         if not chunk.startswith('data:'): 
-            chunk = get_full_error(chunk.encode('utf8'), stream_response)
-            raise ConnectionAbortedError("OpenAI拒绝了请求:" + chunk.decode())
-        delta = json.loads(chunk.lstrip('data:'))['choices'][0]["delta"]
+            error_msg = get_full_error(chunk.encode('utf8'), stream_response).decode()
+            if "reduce the length" in error_msg:
+                raise ConnectionAbortedError("OpenAI拒绝了请求:" + error_msg)
+            else:
+                raise RuntimeError("OpenAI拒绝了请求：" + error_msg)
+        json_data = json.loads(chunk.lstrip('data:'))['choices'][0]
+        delta = json_data["delta"]
         if len(delta) == 0: break
         if "role" in delta: continue
         if "content" in delta: result += delta["content"]; print(delta["content"], end='')
         else: raise RuntimeError("意外Json结构："+delta)
+    if json_data['finish_reason'] == 'length':
+        raise ConnectionAbortedError("正常结束，但显示Token不足。")
     return result
 
 
@@ -180,14 +186,16 @@ def predict(inputs, top_p, temperature, chatbot=[], history=[], system_prompt=''
                     error_msg = chunk.decode()
                     if "reduce the length" in error_msg:
                         chatbot[-1] = (chatbot[-1][0], "[Local Message] Input (or history) is too long, please reduce input or clear history by refreshing this page.")
-                        history = []
+                        history = []    # 清除历史
                     elif "Incorrect API key" in error_msg:
                         chatbot[-1] = (chatbot[-1][0], "[Local Message] Incorrect API key provided.")
+                    elif "exceeded your current quota" in error_msg:
+                        chatbot[-1] = (chatbot[-1][0], "[Local Message] You exceeded your current quota. OpenAI以账户额度不足为由，拒绝服务.")
                     else:
                         from toolbox import regular_txt_to_markdown
-                        tb_str = regular_txt_to_markdown(traceback.format_exc())
-                        chatbot[-1] = (chatbot[-1][0], f"[Local Message] Json Error \n\n {tb_str} \n\n {regular_txt_to_markdown(chunk.decode()[4:])}")
-                    yield chatbot, history, "Json解析不合常规" + error_msg
+                        tb_str = '```\n' + traceback.format_exc() + '```'
+                        chatbot[-1] = (chatbot[-1][0], f"[Local Message] 异常 \n\n{tb_str} \n\n{regular_txt_to_markdown(chunk.decode()[4:])}")
+                    yield chatbot, history, "Json异常" + error_msg
                     return
 
 def generate_payload(inputs, top_p, temperature, history, system_prompt, stream):

@@ -2,9 +2,9 @@
 
 # ChatGPT 学术优化
 
-**如果喜欢这个项目，请给它一个Star；如果你发明了更好用的学术快捷键，欢迎发issue或者pull requests**
+**如果喜欢这个项目，请给它一个Star；如果你发明了更好用的快捷键或函数插件，欢迎发issue或者pull requests（dev分支）**
 
-If you like this project, please give it a Star. If you've come up with more useful academic shortcuts, feel free to open an issue or pull request.
+If you like this project, please give it a Star. If you've come up with more useful academic shortcuts or functional plugins, feel free to open an issue or pull request （to `dev` branch）.
 
 ```
 代码中参考了很多其他优秀项目中的设计，主要包括：
@@ -20,11 +20,11 @@ https://github.com/polarwinkel/mdtex2html
 
 > **Note**
 >
-> 1.请注意只有“红颜色”标识的函数插件（按钮）才支持读取文件。目前暂不能完善地支持pdf格式文献的翻译解读，尚不支持word格式文件的读取。
+> 1.请注意只有“红颜色”标识的函数插件（按钮）才支持读取文件。目前对pdf/word格式文件的支持插件正在逐步完善中，需要更多developer的帮助。
 >
-> 2.本项目中每个文件的功能都在自译解[`project_self_analysis.md`](https://github.com/binary-husky/chatgpt_academic/wiki/chatgpt-academic%E9%A1%B9%E7%9B%AE%E8%87%AA%E8%AF%91%E8%A7%A3%E6%8A%A5%E5%91%8A)详细说明。随着版本的迭代，您也可以随时自行点击相关函数插件，调用GPT重新生成项目的自我解析报告。常见问题汇总在[`wiki`](https://github.com/binary-husky/chatgpt_academic/wiki/%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98)当中。
+> 2.本项目中每个文件的功能都在自译解[`self_analysis.md`](https://github.com/binary-husky/chatgpt_academic/wiki/chatgpt-academic%E9%A1%B9%E7%9B%AE%E8%87%AA%E8%AF%91%E8%A7%A3%E6%8A%A5%E5%91%8A)详细说明。随着版本的迭代，您也可以随时自行点击相关函数插件，调用GPT重新生成项目的自我解析报告。常见问题汇总在[`wiki`](https://github.com/binary-husky/chatgpt_academic/wiki/%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98)当中。
 > 
-> 3.如果您不太习惯部分中文命名的函数，您可以随时点击相关函数插件，调用GPT一键生成纯英文的项目源代码。
+> 3.如果您不太习惯部分中文命名的函数、注释或者界面，您可以随时点击相关函数插件，调用ChatGPT一键生成纯英文的项目源代码。
 
 <div align="center">
     
@@ -48,11 +48,11 @@ chat分析报告生成 | [实验性功能] 运行后自动生成总结汇报
 
 </div>
 
+<!-- - 新界面（左：master主分支, 右：dev开发前沿） -->
 - 新界面
 <div align="center">
-<img src="https://user-images.githubusercontent.com/96192199/228600410-7d44e34f-63f1-4046-acb8-045cb05da8bb.png" width="700" >
+<img src="https://user-images.githubusercontent.com/96192199/229222589-b30ff298-adb1-4e1e-8352-466085919bfb.png" width="700" >
 </div>
-
 
 
 - 所有按钮都通过读取functional.py动态生成，可随意加自定义功能，解放粘贴板
@@ -141,7 +141,7 @@ python main.py
 git clone https://github.com/binary-husky/chatgpt_academic.git
 cd chatgpt_academic
 # 配置 海外Proxy 和 OpenAI API KEY
-config.py
+用任意文本编辑器编辑 config.py
 # 安装
 docker build -t gpt-academic .
 # 运行
@@ -192,7 +192,7 @@ input区域 输入 ./crazy_functions/test_project/python/dqn ， 然后点击 "[
 如果你发明了更好用的学术快捷键，欢迎发issue或者pull requests！
 
 ## 配置代理
-
+### 方法一：常规方法
 在```config.py```中修改端口与代理软件对应
 
 <div align="center">
@@ -204,6 +204,8 @@ input区域 输入 ./crazy_functions/test_project/python/dqn ， 然后点击 "[
 ```
 python check_proxy.py
 ```
+### 方法二：纯新手教程
+[纯新手教程](https://github.com/binary-husky/chatgpt_academic/wiki/%E4%BB%A3%E7%90%86%E8%BD%AF%E4%BB%B6%E9%97%AE%E9%A2%98%E7%9A%84%E6%96%B0%E6%89%8B%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95%EF%BC%88%E6%96%B9%E6%B3%95%E5%8F%AA%E9%80%82%E7%94%A8%E4%BA%8E%E6%96%B0%E6%89%8B%EF%BC%89)
 
 ## 兼容性测试
 
@@ -247,7 +249,7 @@ python check_proxy.py
 
 ### 模块化功能设计
 <div align="center">
-<img src="https://user-images.githubusercontent.com/96192199/227504981-4c6c39c0-ae79-47e6-bffe-0e6442d9da65.png" height="400" >
+<img src="https://user-images.githubusercontent.com/96192199/229288270-093643c1-0018-487a-81e6-1d7809b6e90f.png" height="400" >
 <img src="https://user-images.githubusercontent.com/96192199/227504931-19955f78-45cd-4d1c-adac-e71e50957915.png" height="400" >
 </div>
 
