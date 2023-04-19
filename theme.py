@@ -229,24 +229,3 @@ if CODE_HIGHLIGHT:
 .vm { color: #19177C } /* Name.Variable.Magic */
 .il { color: #666666 } /* Literal.Number.Integer.Long */
 """
-
-/* 行内代码的背景设为淡灰色，设定圆角和间距. */
-.markdown-body code {
-    display: inline;
-    white-space: break-spaces;
-    border-radius: 6px;
-    margin: 0 2px 0 2px;
-    padding: .2em .4em .1em .4em;
-    background-color: rgba(175,184,193,0.2);
-}
-/* 设定代码块的样式，包括背景颜色、内、外边距、圆角。 */
-.markdown-body pre code {
-    display: block;
-    overflow: auto;
-    white-space: pre;
-    background-color: rgba(175,184,193,0.2);
-    border-radius: 10px;
-    padding: 1em;
-    margin: 1em 2em 1em 0.5em;
-}
-"""
