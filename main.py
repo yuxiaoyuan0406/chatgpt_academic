@@ -167,8 +167,8 @@ def auto_opentab_delay():
     def open(): 
         time.sleep(2)       # 打开浏览器
         webbrowser.open_new_tab(f"http://localhost:{PORT}/?__dark-theme=true")
-    threading.Thread(target=open, name="open-browser", daemon=True).start()
-    threading.Thread(target=auto_update, name="self-upgrade", daemon=True).start()
+    # threading.Thread(target=open, name="open-browser", daemon=True).start()
+    # threading.Thread(target=auto_update, name="self-upgrade", daemon=True).start()
 
 auto_opentab_delay()
 demo.queue(concurrency_count=CONCURRENT_COUNT).launch(server_name="0.0.0.0", server_port=PORT, auth=AUTHENTICATION)
