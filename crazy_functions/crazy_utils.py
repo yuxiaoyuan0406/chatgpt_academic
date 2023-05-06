@@ -1,10 +1,9 @@
-import traceback
-from toolbox import update_ui, get_conf
+from toolbox import update_ui, get_conf, trimmed_format_exc
 
 def input_clipping(inputs, history, max_token_limit):
-    import tiktoken
     import numpy as np
-    enc = tiktoken.encoding_for_model(*get_conf('LLM_MODEL'))
+    from request_llm.bridge_all import model_info
+    enc = model_info["gpt-3.5-turbo"]['tokenizer']
     def get_token_num(txt): return len(enc.encode(txt, disallowed_special=()))
 
     mode = 'input-and-history'
@@ -61,12 +60,12 @@ def request_gpt_model_in_new_thread_with_ui_alive(
     """
     import time
     from concurrent.futures import ThreadPoolExecutor
-    from request_llm.bridge_chatgpt import predict_no_ui_long_connection
+    from request_llm.bridge_all import predict_no_ui_long_connection
     # 用户反馈
     chatbot.append([inputs_show_user, ""])
     yield from update_ui(chatbot=chatbot, history=[]) # 刷新界面
     executor = ThreadPoolExecutor(max_workers=16)
-    mutable = ["", time.time()]
+    mutable = ["", time.time(), ""]
     def _req_gpt(inputs, history, sys_prompt):
         retry_op = retry_times_at_unknown_error
         exceeded_cnt = 0
@@ -94,18 +93,18 @@ def request_gpt_model_in_new_thread_with_ui_alive(
                     continue # 返回重试
                 else:
                     # 【选择放弃】
-                    tb_str = '```\n' + traceback.format_exc() + '```'
+                    tb_str = '```\n' + trimmed_format_exc() + '```'
                     mutable[0] += f"[Local Message] 警告，在执行过程中遭遇问题, Traceback：\n\n{tb_str}\n\n"
                     return mutable[0] # 放弃
             except:
                 # 【第三种情况】：其他错误：重试几次
-                tb_str = '```\n' + traceback.format_exc() + '```'
+                tb_str = '```\n' + trimmed_format_exc() + '```'
                 print(tb_str)
                 mutable[0] += f"[Local Message] 警告，在执行过程中遭遇问题, Traceback：\n\n{tb_str}\n\n"
                 if retry_op > 0:
                     retry_op -= 1
                     mutable[0] += f"[Local Message] 重试中，请稍等 {retry_times_at_unknown_error-retry_op}/{retry_times_at_unknown_error}：\n\n"
-                    if "Rate limit reached" in tb_str:
+                    if ("Rate limit reached" in tb_str) or ("Too Many Requests" in tb_str):
                         time.sleep(30)
                     time.sleep(5)
                     continue # 返回重试
@@ -167,13 +166,17 @@ def request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency(
     """
     import time, random
     from concurrent.futures import ThreadPoolExecutor
-    from request_llm.bridge_chatgpt import predict_no_ui_long_connection
+    from request_llm.bridge_all import predict_no_ui_long_connection
     assert len(inputs_array) == len(history_array)
     assert len(inputs_array) == len(sys_prompt_array)
     if max_workers == -1: # 读取配置文件
         try: max_workers, = get_conf('DEFAULT_WORKER_NUM')
         except: max_workers = 8
-        if max_workers <= 0 or max_workers >= 20: max_workers = 8
+        if max_workers <= 0: max_workers = 3
+    # 屏蔽掉 chatglm的多线程，可能会导致严重卡顿
+    if not (llm_kwargs['llm_model'].startswith('gpt-') or llm_kwargs['llm_model'].startswith('api2d-')):
+        max_workers = 1
+        
     executor = ThreadPoolExecutor(max_workers=max_workers)
     n_frag = len(inputs_array)
     # 用户反馈
@@ -216,23 +219,23 @@ def request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency(
                     continue # 返回重试
                 else:
                     # 【选择放弃】
-                    tb_str = '```\n' + traceback.format_exc() + '```'
+                    tb_str = '```\n' + trimmed_format_exc() + '```'
                     gpt_say += f"[Local Message] 警告，线程{index}在执行过程中遭遇问题, Traceback：\n\n{tb_str}\n\n"
                     if len(mutable[index][0]) > 0: gpt_say += "此线程失败前收到的回答：\n\n" + mutable[index][0]
                     mutable[index][2] = "输入过长已放弃"
                     return gpt_say # 放弃
             except:
                 # 【第三种情况】：其他错误
-                tb_str = '```\n' + traceback.format_exc() + '```'
+                tb_str = '```\n' + trimmed_format_exc() + '```'
                 print(tb_str)
                 gpt_say += f"[Local Message] 警告，线程{index}在执行过程中遭遇问题, Traceback：\n\n{tb_str}\n\n"
                 if len(mutable[index][0]) > 0: gpt_say += "此线程失败前收到的回答：\n\n" + mutable[index][0]
                 if retry_op > 0: 
                     retry_op -= 1
                     wait = random.randint(5, 20)
-                    if "Rate limit reached" in tb_str: 
+                    if ("Rate limit reached" in tb_str) or ("Too Many Requests" in tb_str):
                         wait = wait * 3
-                        fail_info = "OpenAI请求速率限制 "
+                        fail_info = "OpenAI绑定信用卡可解除频率限制 "
                     else:
                         fail_info = ""
                     # 也许等待十几秒后，情况会好转
