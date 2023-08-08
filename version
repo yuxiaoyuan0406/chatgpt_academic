@@ -1,5 +1,5 @@
 {
-  "version": 3.3,
+  "version": 3.47,
   "show_feature": true,
-  "new_feature": "支持NewBing !! <-> 保存对话功能 <-> 解读任意语言代码+同时询问任意的LLM组合 <-> 添加联网（Google）回答问题插件 <-> 修复ChatGLM上下文BUG <-> 添加支持清华ChatGLM和GPT-4 <-> 改进架构，支持与多个LLM模型同时对话 <-> 添加支持API2D（国内，可支持gpt4）"
+  "new_feature": "优化一键升级 <-> 提高arxiv翻译速度和成功率 <-> 支持自定义APIKEY格式 <-> 临时修复theme的文件丢失问题 <-> 新增实时语音对话插件（自动断句，脱手对话） <-> 支持加载自定义的ChatGLM2微调模型 <-> 动态ChatBot窗口高度 <-> 修复Azure接口的BUG <-> 完善多语言模块 <-> 完善本地Latex矫错和翻译功能 <-> 增加gpt-3.5-16k的支持"
 }

@@ -1,4 +1,5 @@
 from toolbox import update_ui, get_conf, trimmed_format_exc
+import threading
 
 def input_clipping(inputs, history, max_token_limit):
     import numpy as np
@@ -129,6 +130,11 @@ def request_gpt_model_in_new_thread_with_ui_alive(
     yield from update_ui(chatbot=chatbot, history=[]) # 如果最后成功了，则删除报错信息
     return final_result
 
+def can_multi_process(llm):
+    if llm.startswith('gpt-'): return True
+    if llm.startswith('api2d-'): return True
+    if llm.startswith('azure-'): return True
+    return False
 
 def request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency(
         inputs_array, inputs_show_user_array, llm_kwargs, 
@@ -174,7 +180,7 @@ def request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency(
         except: max_workers = 8
         if max_workers <= 0: max_workers = 3
     # 屏蔽掉 chatglm的多线程，可能会导致严重卡顿
-    if not (llm_kwargs['llm_model'].startswith('gpt-') or llm_kwargs['llm_model'].startswith('api2d-')):
+    if not can_multi_process(llm_kwargs['llm_model']):
         max_workers = 1
         
     executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -259,9 +265,6 @@ def request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency(
         time.sleep(refresh_interval)
         cnt += 1
         worker_done = [h.done() for h in futures]
-        if all(worker_done):
-            executor.shutdown()
-            break
         # 更好的UI视觉效果
         observe_win = []
         # 每个线程都要“喂狗”（看门狗）
@@ -280,7 +283,10 @@ def request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency(
         # 在前端打印些好玩的东西
         chatbot[-1] = [chatbot[-1][0], f'多线程操作已经开始，完成情况: \n\n{stat_str}' + ''.join(['.']*(cnt % 10+1))]
         yield from update_ui(chatbot=chatbot, history=[]) # 刷新界面
-    
+        if all(worker_done):
+            executor.shutdown()
+            break
+
     # 异步任务结束
     gpt_response_collection = []
     for inputs_show_user, f in zip(inputs_show_user_array, futures):
@@ -563,3 +569,185 @@ def read_and_clean_pdf_text(fp):
         #    print亮绿('***************************')
 
     return meta_txt, page_one_meta
+
+
+def get_files_from_everything(txt, type): # type='.md'
+    """
+    这个函数是用来获取指定目录下所有指定类型（如.md）的文件，并且对于网络上的文件，也可以获取它。
+    下面是对每个参数和返回值的说明：
+    参数 
+    - txt: 路径或网址，表示要搜索的文件或者文件夹路径或网络上的文件。 
+    - type: 字符串，表示要搜索的文件类型。默认是.md。
+    返回值 
+    - success: 布尔值，表示函数是否成功执行。 
+    - file_manifest: 文件路径列表，里面包含以指定类型为后缀名的所有文件的绝对路径。 
+    - project_folder: 字符串，表示文件所在的文件夹路径。如果是网络上的文件，就是临时文件夹的路径。
+    该函数详细注释已添加，请确认是否满足您的需要。
+    """
+    import glob, os
+
+    success = True
+    if txt.startswith('http'):
+        # 网络的远程文件
+        import requests
+        from toolbox import get_conf
+        proxies, = get_conf('proxies')
+        r = requests.get(txt, proxies=proxies)
+        with open('./gpt_log/temp'+type, 'wb+') as f: f.write(r.content)
+        project_folder = './gpt_log/'
+        file_manifest = ['./gpt_log/temp'+type]
+    elif txt.endswith(type):
+        # 直接给定文件
+        file_manifest = [txt]
+        project_folder = os.path.dirname(txt)
+    elif os.path.exists(txt):
+        # 本地路径，递归搜索
+        project_folder = txt
+        file_manifest = [f for f in glob.glob(f'{project_folder}/**/*'+type, recursive=True)]
+        if len(file_manifest) == 0:
+            success = False
+    else:
+        project_folder = None
+        file_manifest = []
+        success = False
+
+    return success, file_manifest, project_folder
+
+
+
+
+def Singleton(cls):
+    _instance = {}
+ 
+    def _singleton(*args, **kargs):
+        if cls not in _instance:
+            _instance[cls] = cls(*args, **kargs)
+        return _instance[cls]
+ 
+    return _singleton
+
+
+@Singleton
+class knowledge_archive_interface():
+    def __init__(self) -> None:
+        self.threadLock = threading.Lock()
+        self.current_id = ""
+        self.kai_path = None
+        self.qa_handle = None
+        self.text2vec_large_chinese = None
+
+    def get_chinese_text2vec(self):
+        if self.text2vec_large_chinese is None:
+            # < -------------------预热文本向量化模组--------------- >
+            from toolbox import ProxyNetworkActivate
+            print('Checking Text2vec ...')
+            from langchain.embeddings.huggingface import HuggingFaceEmbeddings
+            with ProxyNetworkActivate():    # 临时地激活代理网络
+                self.text2vec_large_chinese = HuggingFaceEmbeddings(model_name="GanymedeNil/text2vec-large-chinese")
+
+        return self.text2vec_large_chinese
+
+
+    def feed_archive(self, file_manifest, id="default"):
+        self.threadLock.acquire()
+        # import uuid
+        self.current_id = id
+        from zh_langchain import construct_vector_store
+        self.qa_handle, self.kai_path = construct_vector_store(   
+            vs_id=self.current_id, 
+            files=file_manifest, 
+            sentence_size=100,
+            history=[],
+            one_conent="",
+            one_content_segmentation="",
+            text2vec = self.get_chinese_text2vec(),
+        )
+        self.threadLock.release()
+
+    def get_current_archive_id(self):
+        return self.current_id
+    
+    def get_loaded_file(self):
+        return self.qa_handle.get_loaded_file()
+
+    def answer_with_archive_by_id(self, txt, id):
+        self.threadLock.acquire()
+        if not self.current_id == id:
+            self.current_id = id
+            from zh_langchain import construct_vector_store
+            self.qa_handle, self.kai_path = construct_vector_store(   
+                vs_id=self.current_id, 
+                files=[], 
+                sentence_size=100,
+                history=[],
+                one_conent="",
+                one_content_segmentation="",
+                text2vec = self.get_chinese_text2vec(),
+            )
+        VECTOR_SEARCH_SCORE_THRESHOLD = 0
+        VECTOR_SEARCH_TOP_K = 4
+        CHUNK_SIZE = 512
+        resp, prompt = self.qa_handle.get_knowledge_based_conent_test(
+            query = txt,
+            vs_path = self.kai_path,
+            score_threshold=VECTOR_SEARCH_SCORE_THRESHOLD,
+            vector_search_top_k=VECTOR_SEARCH_TOP_K, 
+            chunk_conent=True,
+            chunk_size=CHUNK_SIZE,
+            text2vec = self.get_chinese_text2vec(),
+        )
+        self.threadLock.release()
+        return resp, prompt
+
+def try_install_deps(deps):
+    for dep in deps:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', dep])
+
+
+class construct_html():
+    def __init__(self) -> None:
+        self.css = """
+.row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.column {
+  flex: 1;
+  padding: 10px;
+}
+
+.table-header {
+  font-weight: bold;
+  border-bottom: 1px solid black;
+}
+
+.table-row {
+  border-bottom: 1px solid lightgray;
+}
+
+.table-cell {
+  padding: 5px;
+}
+        """
+        self.html_string = f'<!DOCTYPE html><head><meta charset="utf-8"><title>翻译结果</title><style>{self.css}</style></head>'
+
+
+    def add_row(self, a, b):
+        tmp = """
+<div class="row table-row">
+    <div class="column table-cell">REPLACE_A</div>
+    <div class="column table-cell">REPLACE_B</div>
+</div>
+        """
+        from toolbox import markdown_convertion
+        tmp = tmp.replace('REPLACE_A', markdown_convertion(a))
+        tmp = tmp.replace('REPLACE_B', markdown_convertion(b))
+        self.html_string += tmp
+
+
+    def save_file(self, file_name):
+        with open(f'./gpt_log/{file_name}', 'w', encoding='utf8') as f:
+            f.write(self.html_string.encode('utf-8', 'ignore').decode())
+

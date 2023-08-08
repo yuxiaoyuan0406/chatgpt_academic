@@ -6,7 +6,7 @@ def 高阶功能模板函数(txt, llm_kwargs, plugin_kwargs, chatbot, history, s
     """
     txt             输入栏用户输入的文本，例如需要翻译的一段话，再例如一个包含了待处理文件的路径
     llm_kwargs      gpt模型参数，如温度和top_p等，一般原样传递下去就行
-    plugin_kwargs   插件模型的参数，暂时没有用武之地
+    plugin_kwargs   插件模型的参数，用于灵活调整复杂功能的各种参数
     chatbot         聊天显示框的句柄，用于显示给用户
     history         聊天历史，前情提要
     system_prompt   给gpt的静默提醒
@@ -27,7 +27,3 @@ def 高阶功能模板函数(txt, llm_kwargs, plugin_kwargs, chatbot, history, s
         chatbot[-1] = (i_say, gpt_say)
         history.append(i_say);history.append(gpt_say)
         yield from update_ui(chatbot=chatbot, history=history) # 刷新界面 # 界面更新
-
-        chatbot[-1] = (i_say, gpt_say)
-        history.append(i_say);history.append(gpt_say)
-        yield chatbot, history, '正常'  # 显示

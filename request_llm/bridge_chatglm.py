@@ -1,6 +1,7 @@
 
 from transformers import AutoModel, AutoTokenizer
 import time
+import threading
 import importlib
 from toolbox import update_ui, get_conf
 from multiprocessing import Process, Pipe
@@ -18,6 +19,7 @@ class GetGLMHandle(Process):
         self.success = True
         self.check_dependency()
         self.start()
+        self.threadLock = threading.Lock()
         
     def check_dependency(self):
         try:
@@ -35,15 +37,23 @@ class GetGLMHandle(Process):
         # 子进程执行
         # 第一次运行，加载参数
         retry = 0
+        LOCAL_MODEL_QUANT, device = get_conf('LOCAL_MODEL_QUANT', 'LOCAL_MODEL_DEVICE')
+
+        if LOCAL_MODEL_QUANT == "INT4":         # INT4
+            _model_name_ = "THUDM/chatglm2-6b-int4"
+        elif LOCAL_MODEL_QUANT == "INT8":       # INT8
+            _model_name_ = "THUDM/chatglm2-6b-int8"
+        else:
+            _model_name_ = "THUDM/chatglm2-6b"  # FP16
+
         while True:
             try:
                 if self.chatglm_model is None:
-                    self.chatglm_tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True)
-                    device, = get_conf('LOCAL_MODEL_DEVICE')
+                    self.chatglm_tokenizer = AutoTokenizer.from_pretrained(_model_name_, trust_remote_code=True)
                     if device=='cpu':
-                        self.chatglm_model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True).float()
+                        self.chatglm_model = AutoModel.from_pretrained(_model_name_, trust_remote_code=True).float()
                     else:
-                        self.chatglm_model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True).half().cuda()
+                        self.chatglm_model = AutoModel.from_pretrained(_model_name_, trust_remote_code=True).half().cuda()
                     self.chatglm_model = self.chatglm_model.eval()
                     break
                 else:
@@ -66,12 +76,14 @@ class GetGLMHandle(Process):
                     #     command = self.child.recv()
                     #     if command == '[Terminate]': break
             except:
-                self.child.send('[Local Message] Call ChatGLM fail.')
+                from toolbox import trimmed_format_exc
+                self.child.send('[Local Message] Call ChatGLM fail.' + '\n```\n' + trimmed_format_exc() + '\n```\n')
             # 请求处理结束，开始下一个循环
             self.child.send('[Finish]')
 
     def stream_chat(self, **kwargs):
         # 主进程执行
+        self.threadLock.acquire()
         self.parent.send(kwargs)
         while True:
             res = self.parent.recv()
@@ -79,12 +91,12 @@ class GetGLMHandle(Process):
                 yield res
             else:
                 break
-        return
+        self.threadLock.release()
     
 global glm_handle
 glm_handle = None
 #################################################################################
-def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="", observe_window=None, console_slience=False):
+def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="", observe_window=[], console_slience=False):
     """
         多线程方法
         函数的说明请见 request_llm/bridge_all.py
@@ -92,7 +104,7 @@ def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="",
     global glm_handle
     if glm_handle is None:
         glm_handle = GetGLMHandle()
-        observe_window[0] = load_message + "\n\n" + glm_handle.info
+        if len(observe_window) >= 1: observe_window[0] = load_message + "\n\n" + glm_handle.info
         if not glm_handle.success: 
             error = glm_handle.info
             glm_handle = None
@@ -107,7 +119,7 @@ def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="",
     watch_dog_patience = 5 # 看门狗 (watchdog) 的耐心, 设置5秒即可
     response = ""
     for response in glm_handle.stream_chat(query=inputs, history=history_feedin, max_length=llm_kwargs['max_length'], top_p=llm_kwargs['top_p'], temperature=llm_kwargs['temperature']):
-        observe_window[0] = response
+        if len(observe_window) >= 1:  observe_window[0] = response
         if len(observe_window) >= 2:  
             if (time.time()-observe_window[1]) > watch_dog_patience:
                 raise RuntimeError("程序终止。")
@@ -132,11 +144,8 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
             return
 
     if additional_fn is not None:
-        import core_functional
-        importlib.reload(core_functional)    # 热更新prompt
-        core_functional = core_functional.get_core_functions()
-        if "PreProcess" in core_functional[additional_fn]: inputs = core_functional[additional_fn]["PreProcess"](inputs)  # 获取预处理函数（如果有的话）
-        inputs = core_functional[additional_fn]["Prefix"] + inputs + core_functional[additional_fn]["Suffix"]
+        from core_functional import handle_core_functionality
+        inputs, history = handle_core_functionality(additional_fn, inputs, history, chatbot)
 
     # 处理历史信息
     history_feedin = []
@@ -145,10 +154,13 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
         history_feedin.append([history[2*i], history[2*i+1]] )
 
     # 开始接收chatglm的回复
+    response = "[Local Message]: 等待ChatGLM响应中 ..."
     for response in glm_handle.stream_chat(query=inputs, history=history_feedin, max_length=llm_kwargs['max_length'], top_p=llm_kwargs['top_p'], temperature=llm_kwargs['temperature']):
         chatbot[-1] = (inputs, response)
         yield from update_ui(chatbot=chatbot, history=history)
 
     # 总结输出
+    if response == "[Local Message]: 等待ChatGLM响应中 ...":
+        response = "[Local Message]: ChatGLM响应异常 ..."
     history.extend([inputs, response])
     yield from update_ui(chatbot=chatbot, history=history)

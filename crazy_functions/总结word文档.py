@@ -14,17 +14,19 @@ def 解析docx(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot
             doc = Document(fp)
             file_content = "\n".join([para.text for para in doc.paragraphs])
         else:
-            import win32com.client
-            word = win32com.client.Dispatch("Word.Application")
-            word.visible = False
-            # 打开文件
-            print('fp', os.getcwd())
-            doc = word.Documents.Open(os.getcwd() + '/' + fp)
-            # file_content = doc.Content.Text
-            doc = word.ActiveDocument
-            file_content = doc.Range().Text
-            doc.Close()
-            word.Quit()
+            try:
+                import win32com.client
+                word = win32com.client.Dispatch("Word.Application")
+                word.visible = False
+                # 打开文件
+                doc = word.Documents.Open(os.getcwd() + '/' + fp)
+                # file_content = doc.Content.Text
+                doc = word.ActiveDocument
+                file_content = doc.Range().Text
+                doc.Close()
+                word.Quit()
+            except:
+                raise RuntimeError('请先将.doc文档转换为.docx文档。')
 
         print(file_content)
         # private_upload里面的文件名在解压zip后容易出现乱码（rar和7z格式正常），故可以只分析文章内容，不输入文件名
@@ -85,7 +87,7 @@ def 总结word文档(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_pr
     # 基本信息：功能、贡献者
     chatbot.append([
         "函数插件功能？",
-        "批量总结Word文档。函数插件贡献者: JasonGuo1"])
+        "批量总结Word文档。函数插件贡献者: JasonGuo1。注意, 如果是.doc文件, 请先转化为.docx格式。"])
     yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
 
     # 尝试导入依赖，如果缺少依赖，则给出安装建议

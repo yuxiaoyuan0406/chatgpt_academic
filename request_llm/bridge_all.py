@@ -19,12 +19,6 @@ from .bridge_chatgpt import predict as chatgpt_ui
 from .bridge_chatglm import predict_no_ui_long_connection as chatglm_noui
 from .bridge_chatglm import predict as chatglm_ui
 
-from .bridge_newbing import predict_no_ui_long_connection as newbing_noui
-from .bridge_newbing import predict as newbing_ui
-
-# from .bridge_tgui import predict_no_ui_long_connection as tgui_noui
-# from .bridge_tgui import predict as tgui_ui
-
 colors = ['#FF00FF', '#00FFFF', '#FF0000', '#990099', '#009999', '#990044']
 
 class LazyloadTiktoken(object):
@@ -48,10 +42,11 @@ class LazyloadTiktoken(object):
         return encoder.decode(*args, **kwargs)
 
 # Endpoint 重定向
-API_URL_REDIRECT, = get_conf("API_URL_REDIRECT")
+API_URL_REDIRECT, AZURE_ENDPOINT, AZURE_ENGINE = get_conf("API_URL_REDIRECT", "AZURE_ENDPOINT", "AZURE_ENGINE")
 openai_endpoint = "https://api.openai.com/v1/chat/completions"
 api2d_endpoint = "https://openai.api2d.net/v1/chat/completions"
 newbing_endpoint = "wss://sydney.bing.com/sydney/ChatHub"
+azure_endpoint = AZURE_ENDPOINT + f'openai/deployments/{AZURE_ENGINE}/chat/completions?api-version=2023-05-15'
 # 兼容旧版的配置
 try:
     API_URL, = get_conf("API_URL")
@@ -83,6 +78,33 @@ model_info = {
         "tokenizer": tokenizer_gpt35,
         "token_cnt": get_token_num_gpt35,
     },
+    
+    "gpt-3.5-turbo-16k": {
+        "fn_with_ui": chatgpt_ui,
+        "fn_without_ui": chatgpt_noui,
+        "endpoint": openai_endpoint,
+        "max_token": 1024*16,
+        "tokenizer": tokenizer_gpt35,
+        "token_cnt": get_token_num_gpt35,
+    },
+
+    "gpt-3.5-turbo-0613": {
+        "fn_with_ui": chatgpt_ui,
+        "fn_without_ui": chatgpt_noui,
+        "endpoint": openai_endpoint,
+        "max_token": 4096,
+        "tokenizer": tokenizer_gpt35,
+        "token_cnt": get_token_num_gpt35,
+    },
+
+    "gpt-3.5-turbo-16k-0613": {
+        "fn_with_ui": chatgpt_ui,
+        "fn_without_ui": chatgpt_noui,
+        "endpoint": openai_endpoint,
+        "max_token": 1024 * 16,
+        "tokenizer": tokenizer_gpt35,
+        "token_cnt": get_token_num_gpt35,
+    },
 
     "gpt-4": {
         "fn_with_ui": chatgpt_ui,
@@ -91,6 +113,16 @@ model_info = {
         "max_token": 8192,
         "tokenizer": tokenizer_gpt4,
         "token_cnt": get_token_num_gpt4,
+    },
+
+    # azure openai
+    "azure-gpt-3.5":{
+        "fn_with_ui": chatgpt_ui,
+        "fn_without_ui": chatgpt_noui,
+        "endpoint": azure_endpoint,
+        "max_token": 4096,
+        "tokenizer": tokenizer_gpt35,
+        "token_cnt": get_token_num_gpt35,
     },
 
     # api_2d
@@ -112,7 +144,7 @@ model_info = {
         "token_cnt": get_token_num_gpt4,
     },
 
-    # chatglm
+    # 将 chatglm 直接对齐到 chatglm2
     "chatglm": {
         "fn_with_ui": chatglm_ui,
         "fn_without_ui": chatglm_noui,
@@ -121,17 +153,204 @@ model_info = {
         "tokenizer": tokenizer_gpt35,
         "token_cnt": get_token_num_gpt35,
     },
-    # newbing
-    "newbing": {
-        "fn_with_ui": newbing_ui,
-        "fn_without_ui": newbing_noui,
-        "endpoint": newbing_endpoint,
-        "max_token": 4096,
+    "chatglm2": {
+        "fn_with_ui": chatglm_ui,
+        "fn_without_ui": chatglm_noui,
+        "endpoint": None,
+        "max_token": 1024,
         "tokenizer": tokenizer_gpt35,
         "token_cnt": get_token_num_gpt35,
     },
+
 }
 
+
+AVAIL_LLM_MODELS, LLM_MODEL = get_conf("AVAIL_LLM_MODELS", "LLM_MODEL")
+AVAIL_LLM_MODELS = AVAIL_LLM_MODELS + [LLM_MODEL]
+if "claude-1-100k" in AVAIL_LLM_MODELS or "claude-2" in AVAIL_LLM_MODELS:
+    from .bridge_claude import predict_no_ui_long_connection as claude_noui
+    from .bridge_claude import predict as claude_ui
+    model_info.update({
+        "claude-1-100k": {
+            "fn_with_ui": claude_ui,
+            "fn_without_ui": claude_noui,
+            "endpoint": None,
+            "max_token": 8196,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        },
+    })
+    model_info.update({
+        "claude-2": {
+            "fn_with_ui": claude_ui,
+            "fn_without_ui": claude_noui,
+            "endpoint": None,
+            "max_token": 8196,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        },
+    })
+if "jittorllms_rwkv" in AVAIL_LLM_MODELS:
+    from .bridge_jittorllms_rwkv import predict_no_ui_long_connection as rwkv_noui
+    from .bridge_jittorllms_rwkv import predict as rwkv_ui
+    model_info.update({
+        "jittorllms_rwkv": {
+            "fn_with_ui": rwkv_ui,
+            "fn_without_ui": rwkv_noui,
+            "endpoint": None,
+            "max_token": 1024,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        },
+    })
+if "jittorllms_llama" in AVAIL_LLM_MODELS:
+    from .bridge_jittorllms_llama import predict_no_ui_long_connection as llama_noui
+    from .bridge_jittorllms_llama import predict as llama_ui
+    model_info.update({
+        "jittorllms_llama": {
+            "fn_with_ui": llama_ui,
+            "fn_without_ui": llama_noui,
+            "endpoint": None,
+            "max_token": 1024,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        },
+    })
+if "jittorllms_pangualpha" in AVAIL_LLM_MODELS:
+    from .bridge_jittorllms_pangualpha import predict_no_ui_long_connection as pangualpha_noui
+    from .bridge_jittorllms_pangualpha import predict as pangualpha_ui
+    model_info.update({
+        "jittorllms_pangualpha": {
+            "fn_with_ui": pangualpha_ui,
+            "fn_without_ui": pangualpha_noui,
+            "endpoint": None,
+            "max_token": 1024,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        },
+    })
+if "moss" in AVAIL_LLM_MODELS:
+    from .bridge_moss import predict_no_ui_long_connection as moss_noui
+    from .bridge_moss import predict as moss_ui
+    model_info.update({
+        "moss": {
+            "fn_with_ui": moss_ui,
+            "fn_without_ui": moss_noui,
+            "endpoint": None,
+            "max_token": 1024,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        },
+    })
+if "stack-claude" in AVAIL_LLM_MODELS:
+    from .bridge_stackclaude import predict_no_ui_long_connection as claude_noui
+    from .bridge_stackclaude import predict as claude_ui
+    model_info.update({
+        "stack-claude": {
+            "fn_with_ui": claude_ui,
+            "fn_without_ui": claude_noui,
+            "endpoint": None,
+            "max_token": 8192,
+            "tokenizer": tokenizer_gpt35,
+            "token_cnt": get_token_num_gpt35,
+        }
+    })
+if "newbing-free" in AVAIL_LLM_MODELS:
+    try:
+        from .bridge_newbingfree import predict_no_ui_long_connection as newbingfree_noui
+        from .bridge_newbingfree import predict as newbingfree_ui
+        model_info.update({
+            "newbing-free": {
+                "fn_with_ui": newbingfree_ui,
+                "fn_without_ui": newbingfree_noui,
+                "endpoint": newbing_endpoint,
+                "max_token": 4096,
+                "tokenizer": tokenizer_gpt35,
+                "token_cnt": get_token_num_gpt35,
+            }
+        })
+    except:
+        print(trimmed_format_exc())
+if "newbing" in AVAIL_LLM_MODELS:   # same with newbing-free
+    try:
+        from .bridge_newbingfree import predict_no_ui_long_connection as newbingfree_noui
+        from .bridge_newbingfree import predict as newbingfree_ui
+        model_info.update({
+            "newbing": {
+                "fn_with_ui": newbingfree_ui,
+                "fn_without_ui": newbingfree_noui,
+                "endpoint": newbing_endpoint,
+                "max_token": 4096,
+                "tokenizer": tokenizer_gpt35,
+                "token_cnt": get_token_num_gpt35,
+            }
+        })
+    except:
+        print(trimmed_format_exc())
+if "chatglmft" in AVAIL_LLM_MODELS:   # same with newbing-free
+    try:
+        from .bridge_chatglmft import predict_no_ui_long_connection as chatglmft_noui
+        from .bridge_chatglmft import predict as chatglmft_ui
+        model_info.update({
+            "chatglmft": {
+                "fn_with_ui": chatglmft_ui,
+                "fn_without_ui": chatglmft_noui,
+                "endpoint": None,
+                "max_token": 4096,
+                "tokenizer": tokenizer_gpt35,
+                "token_cnt": get_token_num_gpt35,
+            }
+        })
+    except:
+        print(trimmed_format_exc())
+if "internlm" in AVAIL_LLM_MODELS:
+    try:
+        from .bridge_internlm import predict_no_ui_long_connection as internlm_noui
+        from .bridge_internlm import predict as internlm_ui
+        model_info.update({
+            "internlm": {
+                "fn_with_ui": internlm_ui,
+                "fn_without_ui": internlm_noui,
+                "endpoint": None,
+                "max_token": 4096,
+                "tokenizer": tokenizer_gpt35,
+                "token_cnt": get_token_num_gpt35,
+            }
+        })
+    except:
+        print(trimmed_format_exc())
+if "chatglm_onnx" in AVAIL_LLM_MODELS:
+    try:
+        from .bridge_chatglmonnx import predict_no_ui_long_connection as chatglm_onnx_noui
+        from .bridge_chatglmonnx import predict as chatglm_onnx_ui
+        model_info.update({
+            "chatglm_onnx": {
+                "fn_with_ui": chatglm_onnx_ui,
+                "fn_without_ui": chatglm_onnx_noui,
+                "endpoint": None,
+                "max_token": 4096,
+                "tokenizer": tokenizer_gpt35,
+                "token_cnt": get_token_num_gpt35,
+            }
+        })
+    except:
+        print(trimmed_format_exc())
+if "qwen" in AVAIL_LLM_MODELS:
+    try:
+        from .bridge_qwen import predict_no_ui_long_connection as qwen_noui
+        from .bridge_qwen import predict as qwen_ui
+        model_info.update({
+            "qwen": {
+                "fn_with_ui": qwen_ui,
+                "fn_without_ui": qwen_noui,
+                "endpoint": None,
+                "max_token": 4096,
+                "tokenizer": tokenizer_gpt35,
+                "token_cnt": get_token_num_gpt35,
+            }
+        })
+    except:
+        print(trimmed_format_exc())
 
 def LLM_CATCH_EXCEPTION(f):
     """
@@ -235,6 +454,6 @@ def predict(inputs, llm_kwargs, *args, **kwargs):
     additional_fn代表点击的哪个按钮，按钮见functional.py
     """
 
-    method = model_info[llm_kwargs['llm_model']]["fn_with_ui"]
+    method = model_info[llm_kwargs['llm_model']]["fn_with_ui"]  # 如果这里报错，检查config中的AVAIL_LLM_MODELS选项
     yield from method(inputs, llm_kwargs, *args, **kwargs)
 
