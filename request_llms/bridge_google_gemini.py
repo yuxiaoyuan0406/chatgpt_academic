@@ -7,20 +7,21 @@ import re
 import os
 import time
 from request_llms.com_google import GoogleChatInit
-from toolbox import get_conf, update_ui, update_ui_lastest_msg, have_any_recent_upload_image_files, trimmed_format_exc
+from toolbox import ChatBotWithCookies
+from toolbox import get_conf, update_ui, update_ui_lastest_msg, have_any_recent_upload_image_files, trimmed_format_exc, log_chat, encode_image
 
 proxies, TIMEOUT_SECONDS, MAX_RETRY = get_conf('proxies', 'TIMEOUT_SECONDS', 'MAX_RETRY')
 timeout_bot_msg = '[Local Message] Request timeout. Network error. Please check proxy settings in config.py.' + \
                   '网络错误，检查代理服务器是否可用，以及代理设置的格式是否正确，格式须是[协议]://[地址]:[端口]，缺一不可。'
 
 
-def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="", observe_window=None,
-                                  console_slience=False):
+def predict_no_ui_long_connection(inputs:str, llm_kwargs:dict, history:list=[], sys_prompt:str="", observe_window:list=[],
+                                  console_slience:bool=False):
     # 检查API_KEY
     if get_conf("GEMINI_API_KEY") == "":
         raise ValueError(f"请配置 GEMINI_API_KEY。")
-    
-    genai = GoogleChatInit()
+
+    genai = GoogleChatInit(llm_kwargs)
     watch_dog_patience = 5  # 看门狗的耐心, 设置5秒即可
     gpt_replying_buffer = ''
     stream_response = genai.generate_chat(inputs, llm_kwargs, history, sys_prompt)
@@ -43,29 +44,49 @@ def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="",
             raise RuntimeError(f'{gpt_replying_buffer} 对话错误')
     return gpt_replying_buffer
 
+def make_media_input(inputs, image_paths):
+    image_base64_array = []
+    for image_path in image_paths:
+        path = os.path.abspath(image_path)
+        inputs = inputs + f'<br/><br/><div align="center"><img src="file={path}"></div>'
+        base64 = encode_image(path)
+        image_base64_array.append(base64)
+    return inputs, image_base64_array
 
-def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_prompt='', stream=True, additional_fn=None):
+def predict(inputs:str, llm_kwargs:dict, plugin_kwargs:dict, chatbot:ChatBotWithCookies,
+            history:list=[], system_prompt:str='', stream:bool=True, additional_fn:str=None):
+    
+    from .bridge_all import model_info
+
     # 检查API_KEY
     if get_conf("GEMINI_API_KEY") == "":
         yield from update_ui_lastest_msg(f"请配置 GEMINI_API_KEY。", chatbot=chatbot, history=history, delay=0)
         return
 
-    if "vision" in llm_kwargs["llm_model"]:
-        have_recent_file, image_paths = have_any_recent_upload_image_files(chatbot)
-        def make_media_input(inputs, image_paths): 
-            for image_path in image_paths:
-                inputs = inputs + f'<br/><br/><div align="center"><img src="file={os.path.abspath(image_path)}"></div>'
-            return inputs
-        if have_recent_file:
-            inputs = make_media_input(inputs, image_paths)
+    # 适配润色区域
+    if additional_fn is not None:
+        from core_functional import handle_core_functionality
+        inputs, history = handle_core_functionality(additional_fn, inputs, history, chatbot)
+
+    # multimodal capacity
+    # inspired by codes in bridge_chatgpt
+    has_multimodal_capacity = model_info[llm_kwargs['llm_model']].get('has_multimodal_capacity', False)
+    if has_multimodal_capacity:
+        has_recent_image_upload, image_paths = have_any_recent_upload_image_files(chatbot, pop=True)
+    else:
+        has_recent_image_upload, image_paths = False, []
+    if has_recent_image_upload:
+        inputs, image_base64_array = make_media_input(inputs, image_paths)
+    else:
+        inputs, image_base64_array = inputs, []
 
     chatbot.append((inputs, ""))
     yield from update_ui(chatbot=chatbot, history=history)
-    genai = GoogleChatInit()
+    genai = GoogleChatInit(llm_kwargs)
     retry = 0
     while True:
         try:
-            stream_response = genai.generate_chat(inputs, llm_kwargs, history, system_prompt)
+            stream_response = genai.generate_chat(inputs, llm_kwargs, history, system_prompt, image_base64_array, has_multimodal_capacity)
             break
         except Exception as e:
             retry += 1
@@ -88,6 +109,7 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
             gpt_replying_buffer += paraphrase['text']    # 使用 json 解析库进行处理
             chatbot[-1] = (inputs, gpt_replying_buffer)
             history[-1] = gpt_replying_buffer
+            log_chat(llm_model=llm_kwargs["llm_model"], input_str=inputs, output_str=gpt_replying_buffer)
             yield from update_ui(chatbot=chatbot, history=history)
         if error_match:
             history = history[-2]  # 错误的不纳入对话
@@ -98,7 +120,6 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
         history = history[-2]  # 错误的不纳入对话
         chatbot[-1] = (inputs, gpt_replying_buffer + f"触发了Google的安全访问策略，没有回答\n\n```\n{gpt_security_policy}\n```")
         yield from update_ui(chatbot=chatbot, history=history)
-
 
 
 if __name__ == '__main__':

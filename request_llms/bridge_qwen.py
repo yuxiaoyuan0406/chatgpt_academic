@@ -1,11 +1,12 @@
 import time
 import os
 from toolbox import update_ui, get_conf, update_ui_lastest_msg
-from toolbox import check_packages, report_exception
+from toolbox import check_packages, report_exception, log_chat
 
 model_name = 'Qwen'
 
-def predict_no_ui_long_connection(inputs, llm_kwargs, history=[], sys_prompt="", observe_window=[], console_slience=False):
+def predict_no_ui_long_connection(inputs:str, llm_kwargs:dict, history:list=[], sys_prompt:str="",
+                                  observe_window:list=[], console_slience:bool=False):
     """
         ⭐多线程方法
         函数的说明请见 request_llms/bridge_all.py
@@ -47,14 +48,18 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
     if additional_fn is not None:
         from core_functional import handle_core_functionality
         inputs, history = handle_core_functionality(additional_fn, inputs, history, chatbot)
+        chatbot[-1] = (inputs, "")
+        yield from update_ui(chatbot=chatbot, history=history)
 
     # 开始接收回复
     from .com_qwenapi import QwenRequestInstance
     sri = QwenRequestInstance()
+    response = f"[Local Message] 等待{model_name}响应中 ..."
     for response in sri.generate(inputs, llm_kwargs, history, system_prompt):
         chatbot[-1] = (inputs, response)
         yield from update_ui(chatbot=chatbot, history=history)
 
+    log_chat(llm_model=llm_kwargs["llm_model"], input_str=inputs, output_str=response)
     # 总结输出
     if response == f"[Local Message] 等待{model_name}响应中 ...":
         response = f"[Local Message] {model_name}响应异常 ..."

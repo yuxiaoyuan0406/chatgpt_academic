@@ -12,6 +12,12 @@ class PaperFileGroup():
         self.sp_file_index = []
         self.sp_file_tag = []
 
+        # count_token
+        from request_llms.bridge_all import model_info
+        enc = model_info["gpt-3.5-turbo"]['tokenizer']
+        def get_token_num(txt): return len(enc.encode(txt, disallowed_special=()))
+        self.get_token_num = get_token_num
+
     def run_file_split(self, max_token_limit=1900):
         """
         将长文本分离开来
@@ -54,11 +60,11 @@ def parseNotebook(filename, enable_markdown=1):
         Code += f"This is {idx+1}th code block: \n"
         Code += code+"\n"
 
-    return Code 
+    return Code
 
 
 def ipynb解释(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt):
-    from .crazy_utils import request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency
+    from crazy_functions.crazy_utils import request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency
 
     if ("advanced_arg" in plugin_kwargs) and (plugin_kwargs["advanced_arg"] == ""): plugin_kwargs.pop("advanced_arg")
     enable_markdown = plugin_kwargs.get("advanced_arg", "1")
@@ -109,7 +115,7 @@ def ipynb解释(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbo
     yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
 
 @CatchException
-def 解析ipynb文件(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, web_port):
+def 解析ipynb文件(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request):
     chatbot.append([
         "函数插件功能？",
         "对IPynb文件进行解析。Contributor: codycjy."])

@@ -1,6 +1,7 @@
 import os
 import gradio as gr
 from toolbox import get_conf
+from loguru import logger
 
 CODE_HIGHLIGHT, ADD_WAIFU, LAYOUT = get_conf("CODE_HIGHLIGHT", "ADD_WAIFU", "LAYOUT")
 theme_dir = os.path.dirname(__file__)
@@ -62,11 +63,11 @@ def adjust_theme():
             button_primary_text_color="white",
             button_primary_text_color_dark="white",
             button_secondary_background_fill="*neutral_100",
-            button_secondary_background_fill_hover="*neutral_50",
+            button_secondary_background_fill_hover="#FEFEFE",
             button_secondary_background_fill_dark="*neutral_900",
             button_secondary_text_color="*neutral_800",
             button_secondary_text_color_dark="white",
-            background_fill_primary="*neutral_50",
+            background_fill_primary="#FEFEFE",
             background_fill_primary_dark="#1F1F1F",
             block_title_text_color="*primary_500",
             block_title_background_fill_dark="*primary_900",
@@ -76,16 +77,8 @@ def adjust_theme():
             chatbot_code_background_color_dark="*neutral_950",
         )
 
-        with open(os.path.join(theme_dir, "common.js"), "r", encoding="utf8") as f:
-            js = f"<script>{f.read()}</script>"
-
-        # 添加一个萌萌的看板娘
-        if ADD_WAIFU:
-            js += """
-                <script src="file=docs/waifu_plugin/jquery.min.js"></script>
-                <script src="file=docs/waifu_plugin/jquery-ui.min.js"></script>
-                <script src="file=docs/waifu_plugin/autoload.js"></script>
-            """
+        from themes.common import get_common_html_javascript_code
+        js = get_common_html_javascript_code()
 
         with open(os.path.join(theme_dir, "green.js"), "r", encoding="utf8") as f:
             js += f"<script>{f.read()}</script>"
@@ -105,7 +98,7 @@ def adjust_theme():
         )
     except:
         set_theme = None
-        print("gradio版本较旧, 不能自定义字体和颜色")
+        logger.error("gradio版本较旧, 不能自定义字体和颜色")
     return set_theme
 
 

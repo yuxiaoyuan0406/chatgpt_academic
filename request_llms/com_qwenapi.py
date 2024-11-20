@@ -1,7 +1,6 @@
 from http import HTTPStatus
 from toolbox import get_conf
 import threading
-import logging
 
 timeout_bot_msg = '[Local Message] Request timeout. Network error.'
 
@@ -48,6 +47,10 @@ class QwenRequestInstance():
         for response in responses:
             if response.status_code == HTTPStatus.OK:
                 if response.output.choices[0].finish_reason == 'stop':
+                    try:
+                        self.result_buf += response.output.choices[0].message.content
+                    except:
+                        pass
                     yield self.result_buf
                     break
                 elif response.output.choices[0].finish_reason == 'length':
@@ -61,8 +64,12 @@ class QwenRequestInstance():
                 self.result_buf += f"[Local Message] 请求错误：状态码：{response.status_code}，错误码:{response.code}，消息：{response.message}"
                 yield self.result_buf
                 break
-        logging.info(f'[raw_input] {inputs}')
-        logging.info(f'[response] {self.result_buf}')
+
+        # 耗尽generator避免报错
+        while True:
+            try: next(responses)
+            except: break
+
         return self.result_buf
 
 

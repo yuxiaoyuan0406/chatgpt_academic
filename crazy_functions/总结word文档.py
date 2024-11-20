@@ -1,7 +1,7 @@
 from toolbox import update_ui
 from toolbox import CatchException, report_exception
 from toolbox import write_history_to_file, promote_file_to_downloadzone
-from .crazy_utils import request_gpt_model_in_new_thread_with_ui_alive
+from crazy_functions.crazy_utils import request_gpt_model_in_new_thread_with_ui_alive
 fast_debug = False
 
 
@@ -40,10 +40,10 @@ def 解析docx(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot
             i_say = f'请对下面的文章片段用中文做概述，文件名是{os.path.relpath(fp, project_folder)}，文章内容是 ```{paper_frag}```'
             i_say_show_user = f'请对下面的文章片段做概述: {os.path.abspath(fp)}的第{i+1}/{len(paper_fragments)}个片段。'
             gpt_say = yield from request_gpt_model_in_new_thread_with_ui_alive(
-                inputs=i_say, 
-                inputs_show_user=i_say_show_user, 
+                inputs=i_say,
+                inputs_show_user=i_say_show_user,
                 llm_kwargs=llm_kwargs,
-                chatbot=chatbot, 
+                chatbot=chatbot,
                 history=[],
                 sys_prompt="总结文章。"
             )
@@ -56,10 +56,10 @@ def 解析docx(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot
         if len(paper_fragments) > 1:
             i_say = f"根据以上的对话，总结文章{os.path.abspath(fp)}的主要内容。"
             gpt_say = yield from request_gpt_model_in_new_thread_with_ui_alive(
-                inputs=i_say, 
-                inputs_show_user=i_say, 
+                inputs=i_say,
+                inputs_show_user=i_say,
                 llm_kwargs=llm_kwargs,
-                chatbot=chatbot, 
+                chatbot=chatbot,
                 history=this_paper_history,
                 sys_prompt="总结文章。"
             )
@@ -79,7 +79,7 @@ def 解析docx(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot
 
 
 @CatchException
-def 总结word文档(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, web_port):
+def 总结word文档(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, user_request):
     import glob, os
 
     # 基本信息：功能、贡献者
